@@ -24,6 +24,7 @@ async function sbFetch(path, options = {}) {
     ...options,
     headers: {
       "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
       "Content-Type": "application/json",
       "Prefer": options.prefer || "return=representation",
       ...(options.headers || {}),
@@ -51,7 +52,6 @@ function isOverdue(dateStr) {
 export default function TodoApp() {
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [text, setText] = useState("");
   const [category, setCategory] = useState("personal");
   const [priority, setPriority] = useState("medium");
@@ -63,19 +63,23 @@ export default function TodoApp() {
   const [editText, setEditText] = useState("");
   const [confetti, setConfetti] = useState([]);
 
-  useEffect(() => { loadTodos(); }, []);
+  useEffect(() => {
+    loadTodos();
+  }, []);
 
   async function loadTodos() {
     try {
       setLoading(true);
-      setError(null);
       const data = await sbFetch("todos?select=*&order=created_at.asc");
-      setTodos((data || []).map(t => ({
-        id: t.id, text: t.text, done: t.done,
-        priority: t.priority, category: t.category, dueDate: t.due_date || "",
+      setTodos(data.map(t => ({
+        id: t.id,
+        text: t.text,
+        done: t.done,
+        priority: t.priority,
+        category: t.category,
+        dueDate: t.due_date || "",
       })));
     } catch (e) {
-      setError("Could not connect to database. Check your Supabase settings.");
       console.error("Load error:", e);
     } finally {
       setLoading(false);
@@ -96,10 +100,11 @@ export default function TodoApp() {
 
   async function addTodo() {
     if (!text.trim()) return;
+    const newTodo = { text: text.trim(), category, priority, due_date: dueDate || null, done: false };
     try {
       const [created] = await sbFetch("todos", {
         method: "POST",
-        body: JSON.stringify({ text: text.trim(), category, priority, due_date: dueDate || null, done: false }),
+        body: JSON.stringify(newTodo),
       });
       setTodos(prev => [...prev, {
         id: created.id, text: created.text, done: created.done,
@@ -175,6 +180,7 @@ export default function TodoApp() {
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
         @keyframes slideIn { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .todo-card { animation: slideIn 0.25s ease; }
         .todo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.13) !important; }
         .add-btn:hover { transform: scale(1.04); }
@@ -194,12 +200,6 @@ export default function TodoApp() {
             {loading ? "Loading... ⏳" : `${doneCount}/${todos.length} completed 🎯`}
           </p>
         </div>
-
-        {error && (
-          <div style={{ background: "#FEE2E2", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#DC2626", fontWeight: 700, fontSize: 13, textAlign: "center" }}>
-            ⚠️ {error}
-          </div>
-        )}
 
         <div style={{ background: "#fff", borderRadius: 20, padding: 20, marginBottom: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -266,7 +266,7 @@ export default function TodoApp() {
               Loading your tasks... ⏳
             </div>
           )}
-          {!loading && !error && filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.8)", fontWeight: 700, fontSize: 16 }}>
               No tasks here! 🎉 Add one above.
             </div>
@@ -345,5 +345,4 @@ export default function TodoApp() {
       </div>
     </div>
   );
-      }
-      
+}
